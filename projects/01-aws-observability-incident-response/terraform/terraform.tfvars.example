@@ -1,0 +1,7 @@
+aws_region        = "us-east-1"
+environment       = "lab"
+instance_type     = "t3.micro"
+allowed_http_cidr = "0.0.0.0/0"
+
+# Optional. Adding an email creates an SNS subscription that must be confirmed.
+# notification_email = "your-address@example.com"
