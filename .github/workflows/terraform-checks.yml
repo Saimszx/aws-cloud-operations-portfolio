@@ -43,7 +43,7 @@ jobs:
         run: cfn-lint --format pretty --regions us-east-2 -- identity/bootstrap.yaml
 
       - name: Evaluate IAM policy-as-code rules
-        uses: aws-cloudformation/cloudformation-guard@v3.2.0
+        uses: aws-cloudformation/cloudformation-guard@0e1dc63f667c80e3b9ed1aea2ba1cf6c8d588298 # action-v0.0.5
         with:
           rules: identity/rules/identity-bootstrap.guard
           data: identity/bootstrap.yaml
