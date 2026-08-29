@@ -1,3 +1,7 @@
+data "aws_caller_identity" "current" {}
+
+data "aws_partition" "current" {}
+
 data "aws_iam_policy_document" "ec2_trust" {
   statement {
     effect  = "Allow"
@@ -11,8 +15,9 @@ data "aws_iam_policy_document" "ec2_trust" {
 }
 
 resource "aws_iam_role" "instance" {
-  name               = "${local.name_prefix}-instance-role"
-  assume_role_policy = data.aws_iam_policy_document.ec2_trust.json
+  name                 = "${local.name_prefix}-instance-role"
+  assume_role_policy   = data.aws_iam_policy_document.ec2_trust.json
+  permissions_boundary = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:policy/${var.instance_role_permissions_boundary_name}"
 }
 
 resource "aws_iam_role_policy_attachment" "ssm_core" {

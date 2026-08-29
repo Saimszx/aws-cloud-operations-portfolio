@@ -26,6 +26,13 @@ I am a Computer Information Systems student at Miami Dade College with an intere
 | Backup and Disaster Recovery Lab | AWS Backup, S3 versioning, lifecycle policies, recovery testing | Planned |
 | Serverless Operations and Cost Controls | Lambda, API Gateway, DynamoDB, logging, alarms, budgets | Planned |
 
+## Security Foundation
+
+The [portfolio IAM identity bootstrap](identity/README.md) creates the non-root,
+MFA-protected access path used by Terraform. It is defined with CloudFormation,
+checked with `cfn-lint`, evaluated with CloudFormation Guard, and intentionally
+creates no passwords or long-lived access keys.
+
 ## Documentation Standards
 
 Every completed project will include:

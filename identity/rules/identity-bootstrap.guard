@@ -1,0 +1,33 @@
+# Targeted compliance rules for identity/bootstrap.yaml.
+
+let human_users = Resources.*[ Type == 'AWS::IAM::User' ]
+let deployment_roles = Resources.*[ Type == 'AWS::IAM::Role' ]
+let boundaries = Resources.*[ Type == 'AWS::IAM::ManagedPolicy' ]
+
+rule human_user_exists {
+  %human_users !empty
+}
+
+rule deployment_role_exists {
+  %deployment_roles !empty
+}
+
+rule instance_boundary_exists {
+  %boundaries !empty
+}
+
+rule human_user_has_no_cloudformation_login_profile when %human_users !empty {
+  %human_users.Properties.LoginProfile empty
+}
+
+rule deployment_role_session_is_one_hour when %deployment_roles !empty {
+  %deployment_roles.Properties.MaxSessionDuration == 3600
+}
+
+rule deployment_role_requires_mfa when %deployment_roles !empty {
+  %deployment_roles.Properties.AssumeRolePolicyDocument.Statement[*].Condition.Bool.'aws:MultiFactorAuthPresent' == 'true'
+}
+
+rule human_user_has_only_sign_in_managed_policy when %human_users !empty {
+  %human_users.Properties.ManagedPolicyArns[*].'Fn::Sub' == /.*SignInLocalDevelopmentAccess/
+}

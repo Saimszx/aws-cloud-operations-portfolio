@@ -1,0 +1,439 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Creates a non-root portfolio operator and a scoped deployment role - separates
+  human authentication from Terraform permissions and requires MFA for role use.
+
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@2
+  com.aws.cloudformation.Context:
+    arch: human IAM user -> MFA-protected deployer role -> bounded EC2 instance role
+    must:
+      - Do not create access keys or a login profile in this stack
+      - Keep MFA mandatory in the deployment role trust policy
+      - Keep the EC2 instance-role permissions boundary mandatory
+    ref:
+      - at: identity/README.md
+        has: setup, operating model, permissions, verification, and recovery
+        scope: repository
+
+Parameters:
+  HumanUserName:
+    Type: String
+    Default: aws-portfolio-admin
+    Description: IAM user used only for interactive human authentication.
+    MinLength: 1
+    MaxLength: 64
+    AllowedPattern: '^[A-Za-z0-9+=,.@_-]+$'
+
+  DeploymentRoleName:
+    Type: String
+    Default: aws-portfolio-deployer
+    Description: MFA-protected role assumed for Terraform and lab operations.
+    MinLength: 1
+    MaxLength: 64
+    AllowedPattern: '^[A-Za-z0-9+=,.@_-]+$'
+
+  InstanceBoundaryPolicyName:
+    Type: String
+    Default: aws-observability-instance-boundary
+    Description: Permissions boundary required on the EC2 instance role.
+    MinLength: 1
+    MaxLength: 128
+    AllowedPattern: '^[\w+=,.@-]+$'
+
+  ProjectName:
+    Type: String
+    Default: aws-observability-incident-response
+    Description: Project prefix used by Terraform resource names and tags.
+    AllowedValues:
+      - aws-observability-incident-response
+
+  EnvironmentName:
+    Type: String
+    Default: lab
+    Description: Environment suffix used by Terraform resource names and tags.
+    AllowedPattern: '^[a-z0-9-]+$'
+    MinLength: 1
+    MaxLength: 16
+
+  DeploymentRegion:
+    Type: String
+    Default: us-east-2
+    Description: Only AWS Region in which the deployment role may manage regional services.
+    AllowedValues:
+      - us-east-2
+
+Resources:
+  HumanUser:
+    Type: AWS::IAM::User
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: authenticates the human operator; separate role supplies workload permissions; no long-lived access keys
+        must:
+          - No access keys
+          - Password and MFA are configured privately outside CloudFormation
+          - Direct permissions stay limited to local-development sign-in and AssumeRole
+        mutable: change-with-constraints
+        mutability:
+          UserName: review-required
+    Properties:
+      UserName: !Ref HumanUserName
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/SignInLocalDevelopmentAccess
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Purpose
+          Value: HumanAuthentication
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  InstanceRoleBoundary:
+    Type: AWS::IAM::ManagedPolicy
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: caps the EC2 role even if its attached policies change; permits only SSM management plus project telemetry delivery
+        must:
+          - Terraform must attach this boundary when creating the EC2 role
+          - CloudWatch metrics remain limited to the CWAgent namespace
+          - Log writes remain limited to the portfolio log-group prefix
+        mutable: review-required
+    Properties:
+      ManagedPolicyName: !Ref InstanceBoundaryPolicyName
+      Description: Caps the portfolio EC2 role to Systems Manager and project observability delivery.
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: SystemsManagerAgentCore
+            Effect: Allow
+            Action:
+              - ssm:DescribeAssociation
+              - ssm:GetDeployablePatchSnapshotForInstance
+              - ssm:GetDocument
+              - ssm:DescribeDocument
+              - ssm:GetManifest
+              - ssm:GetParameter
+              - ssm:GetParameters
+              - ssm:ListAssociations
+              - ssm:ListInstanceAssociations
+              - ssm:PutInventory
+              - ssm:PutComplianceItems
+              - ssm:PutConfigurePackageResult
+              - ssm:UpdateAssociationStatus
+              - ssm:UpdateInstanceAssociationStatus
+              - ssm:UpdateInstanceInformation
+            Resource: '*'
+          - Sid: SessionManagerChannels
+            Effect: Allow
+            Action:
+              - ssmmessages:CreateControlChannel
+              - ssmmessages:CreateDataChannel
+              - ssmmessages:OpenControlChannel
+              - ssmmessages:OpenDataChannel
+            Resource: '*'
+          - Sid: LegacySystemsManagerMessages
+            Effect: Allow
+            Action:
+              - ec2messages:AcknowledgeMessage
+              - ec2messages:DeleteMessage
+              - ec2messages:FailMessage
+              - ec2messages:GetEndpoint
+              - ec2messages:GetMessages
+              - ec2messages:SendReply
+            Resource: '*'
+          - Sid: WritePortfolioLogStreams
+            Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:DescribeLogStreams
+              - logs:PutLogEvents
+            Resource: !Sub arn:${AWS::Partition}:logs:${DeploymentRegion}:${AWS::AccountId}:log-group:/portfolio/cloudops/*:*
+          - Sid: PublishCloudWatchAgentMetrics
+            Effect: Allow
+            Action:
+              - cloudwatch:PutMetricData
+            Resource: '*'
+            Condition:
+              StringEquals:
+                cloudwatch:namespace: CWAgent
+
+  DeploymentRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: supplies temporary Terraform and operations permissions; role separation keeps the human identity minimally privileged
+        must:
+          - Trust only the human IAM user created by this stack
+          - Require MFA on every AssumeRole session
+          - Limit regional service calls to the approved deployment Region
+          - Allow iam:PassRole only for the exact bounded EC2 role and EC2 service
+        mutable: review-required
+        mutability:
+          AssumeRolePolicyDocument: must-never-change
+    Properties:
+      RoleName: !Ref DeploymentRoleName
+      Description: Scoped Terraform and operations role for the AWS observability portfolio lab.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: HumanOperatorWithMfa
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt HumanUser.Arn
+            Action: sts:AssumeRole
+            Condition:
+              Bool:
+                aws:MultiFactorAuthPresent: 'true'
+      Policies:
+        - PolicyName: observability-lab-deployment
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadApprovedAmiParameter
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource: !Sub arn:${AWS::Partition}:ssm:${DeploymentRegion}::parameter/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+
+              - Sid: ManageRegionalEc2Lab
+                Effect: Allow
+                Action:
+                  - ec2:AssociateRouteTable
+                  - ec2:AttachInternetGateway
+                  - ec2:AuthorizeSecurityGroupEgress
+                  - ec2:AuthorizeSecurityGroupIngress
+                  - ec2:CreateInternetGateway
+                  - ec2:CreateRoute
+                  - ec2:CreateRouteTable
+                  - ec2:CreateSecurityGroup
+                  - ec2:CreateSubnet
+                  - ec2:CreateTags
+                  - ec2:CreateVpc
+                  - ec2:DeleteInternetGateway
+                  - ec2:DeleteRoute
+                  - ec2:DeleteRouteTable
+                  - ec2:DeleteSecurityGroup
+                  - ec2:DeleteSubnet
+                  - ec2:DeleteTags
+                  - ec2:DeleteVpc
+                  - ec2:DescribeAvailabilityZones
+                  - ec2:DescribeImages
+                  - ec2:DescribeInstanceAttribute
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInstanceTypes
+                  - ec2:DescribeInternetGateways
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeRouteTables
+                  - ec2:DescribeSecurityGroupRules
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeTags
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeVpcAttribute
+                  - ec2:DescribeVpcs
+                  - ec2:DetachInternetGateway
+                  - ec2:DisassociateRouteTable
+                  - ec2:ModifyInstanceAttribute
+                  - ec2:ModifySubnetAttribute
+                  - ec2:ModifyVpcAttribute
+                  - ec2:RebootInstances
+                  - ec2:ReplaceRouteTableAssociation
+                  - ec2:RevokeSecurityGroupEgress
+                  - ec2:RevokeSecurityGroupIngress
+                  - ec2:RunInstances
+                  - ec2:StartInstances
+                  - ec2:StopInstances
+                  - ec2:TerminateInstances
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref DeploymentRegion
+
+              - Sid: ManageProjectLogGroups
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:DeleteLogGroup
+                  - logs:DeleteRetentionPolicy
+                  - logs:DescribeLogStreams
+                  - logs:FilterLogEvents
+                  - logs:GetLogEvents
+                  - logs:GetQueryResults
+                  - logs:ListTagsForResource
+                  - logs:PutRetentionPolicy
+                  - logs:StartQuery
+                  - logs:StopQuery
+                  - logs:TagResource
+                  - logs:UntagResource
+                Resource: !Sub arn:${AWS::Partition}:logs:${DeploymentRegion}:${AWS::AccountId}:log-group:/portfolio/cloudops/*
+              - Sid: DiscoverProjectLogGroups
+                Effect: Allow
+                Action:
+                  - logs:DescribeLogGroups
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref DeploymentRegion
+
+              - Sid: ManageProjectMonitoring
+                Effect: Allow
+                Action:
+                  - cloudwatch:DeleteAlarms
+                  - cloudwatch:DeleteDashboards
+                  - cloudwatch:DescribeAlarms
+                  - cloudwatch:GetDashboard
+                  - cloudwatch:GetMetricData
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:ListDashboards
+                  - cloudwatch:ListMetrics
+                  - cloudwatch:ListTagsForResource
+                  - cloudwatch:PutDashboard
+                  - cloudwatch:PutMetricAlarm
+                  - cloudwatch:TagResource
+                  - cloudwatch:UntagResource
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref DeploymentRegion
+
+              - Sid: ManageProjectNotificationTopic
+                Effect: Allow
+                Action:
+                  - sns:CreateTopic
+                  - sns:DeleteTopic
+                  - sns:GetTopicAttributes
+                  - sns:ListSubscriptionsByTopic
+                  - sns:ListTagsForResource
+                  - sns:SetTopicAttributes
+                  - sns:Subscribe
+                  - sns:TagResource
+                  - sns:UntagResource
+                Resource: !Sub arn:${AWS::Partition}:sns:${DeploymentRegion}:${AWS::AccountId}:${ProjectName}-${EnvironmentName}-operations
+              - Sid: ManageProjectSubscriptionLifecycle
+                Effect: Allow
+                Action:
+                  - sns:GetSubscriptionAttributes
+                  - sns:Unsubscribe
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref DeploymentRegion
+
+              - Sid: CreateBoundedInstanceRole
+                Effect: Allow
+                Action:
+                  - iam:CreateRole
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ProjectName}-${EnvironmentName}-instance-role
+                Condition:
+                  ArnEquals:
+                    iam:PermissionsBoundary: !Ref InstanceRoleBoundary
+              - Sid: ManageExactInstanceRole
+                Effect: Allow
+                Action:
+                  - iam:DeleteRole
+                  - iam:DeleteRolePolicy
+                  - iam:GetRole
+                  - iam:GetRolePolicy
+                  - iam:ListAttachedRolePolicies
+                  - iam:ListInstanceProfilesForRole
+                  - iam:ListRolePolicies
+                  - iam:ListRoleTags
+                  - iam:PutRolePolicy
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:UpdateRoleDescription
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ProjectName}-${EnvironmentName}-instance-role
+              - Sid: AttachOnlySystemsManagerCore
+                Effect: Allow
+                Action:
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ProjectName}-${EnvironmentName}-instance-role
+                Condition:
+                  ArnEquals:
+                    iam:PolicyARN: !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+              - Sid: ManageExactInstanceProfile
+                Effect: Allow
+                Action:
+                  - iam:AddRoleToInstanceProfile
+                  - iam:CreateInstanceProfile
+                  - iam:DeleteInstanceProfile
+                  - iam:GetInstanceProfile
+                  - iam:ListInstanceProfileTags
+                  - iam:RemoveRoleFromInstanceProfile
+                  - iam:TagInstanceProfile
+                  - iam:UntagInstanceProfile
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:instance-profile/${ProjectName}-${EnvironmentName}-instance-profile
+              - Sid: PassExactRoleOnlyToEc2
+                Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ProjectName}-${EnvironmentName}-instance-role
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: ec2.amazonaws.com
+
+              - Sid: OperateInstanceThroughSessionManager
+                Effect: Allow
+                Action:
+                  - ssm:DescribeInstanceInformation
+                  - ssm:GetConnectionStatus
+                  - ssm:StartSession
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref DeploymentRegion
+              - Sid: ManageOwnSession
+                Effect: Allow
+                Action:
+                  - ssm:ResumeSession
+                  - ssm:TerminateSession
+                Resource: !Sub arn:${AWS::Partition}:ssm:${DeploymentRegion}:${AWS::AccountId}:session/${HumanUserName}-*
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Purpose
+          Value: TerraformDeployment
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  HumanAssumeRolePolicy:
+    Type: AWS::IAM::Policy
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: grants one direct capability to the human identity; all workload permissions remain on the temporary role session
+        must:
+          - Resource stays bound to the deployment role created by this stack
+        mutable: review-required
+    Properties:
+      PolicyName: assume-portfolio-deployment-role
+      Users:
+        - !Ref HumanUser
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AssumeDeploymentRole
+            Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Resource: !GetAtt DeploymentRole.Arn
+
+Outputs:
+  HumanUserName:
+    Description: IAM user name for interactive AWS sign-in.
+    Value: !Ref HumanUser
+
+  HumanUserArn:
+    Description: IAM user ARN used by the role trust policy.
+    Value: !GetAtt HumanUser.Arn
+
+  DeploymentRoleArn:
+    Description: Role ARN used by the AWS CLI role profile.
+    Value: !GetAtt DeploymentRole.Arn
+
+  InstanceBoundaryPolicyArn:
+    Description: Permissions boundary ARN required by the Terraform EC2 role.
+    Value: !Ref InstanceRoleBoundary

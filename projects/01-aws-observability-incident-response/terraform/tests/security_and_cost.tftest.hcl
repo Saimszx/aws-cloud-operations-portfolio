@@ -7,6 +7,20 @@ mock_provider "aws" {
     }
   }
 
+  mock_data "aws_partition" {
+    defaults = {
+      partition = "aws"
+    }
+  }
+
+  mock_data "aws_caller_identity" {
+    defaults = {
+      account_id = "cwtestacct00"
+      arn        = "arn:aws:iam::cwtestacct00:user/terraform-test"
+      id         = "AIDATESTIDENTITY00000"
+    }
+  }
+
   mock_data "aws_iam_policy_document" {
     defaults = {
       json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}"
@@ -40,6 +54,11 @@ run "security_and_cost_controls" {
   assert {
     condition     = aws_instance.web.monitoring == false
     error_message = "Paid EC2 detailed monitoring must remain disabled for this lab."
+  }
+
+  assert {
+    condition     = aws_iam_role.instance.permissions_boundary == "arn:aws:iam::cwtestacct00:policy/aws-observability-instance-boundary"
+    error_message = "The EC2 role must use the permissions boundary created by the identity bootstrap."
   }
 
   assert {

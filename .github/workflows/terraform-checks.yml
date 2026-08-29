@@ -1,13 +1,15 @@
-name: Terraform Checks
+name: Infrastructure Checks
 
 on:
   push:
     paths:
+      - "identity/**"
       - "projects/01-aws-observability-incident-response/terraform/**"
       - "projects/01-aws-observability-incident-response/scripts/**"
       - ".github/workflows/terraform-checks.yml"
   pull_request:
     paths:
+      - "identity/**"
       - "projects/01-aws-observability-incident-response/terraform/**"
       - "projects/01-aws-observability-incident-response/scripts/**"
       - ".github/workflows/terraform-checks.yml"
@@ -17,11 +19,39 @@ permissions:
   contents: read
 
 concurrency:
-  group: terraform-checks-${{ github.ref }}
+  group: infrastructure-checks-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  validate:
+  cloudformation:
+    name: Validate IAM bootstrap
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install CloudFormation linter
+        run: python -m pip install cfn-lint==1.55.1
+
+      - name: Validate CloudFormation syntax and schema
+        run: cfn-lint --format pretty --regions us-east-2 -- identity/bootstrap.yaml
+
+      - name: Evaluate IAM policy-as-code rules
+        uses: aws-cloudformation/cloudformation-guard@v3.2.0
+        with:
+          rules: identity/rules/identity-bootstrap.guard
+          data: identity/bootstrap.yaml
+          checkout: "false"
+          analyze: "false"
+          create-review: "false"
+
+  terraform:
     name: Format and validate
     runs-on: ubuntu-latest
     defaults:

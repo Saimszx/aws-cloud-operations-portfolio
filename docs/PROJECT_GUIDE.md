@@ -7,8 +7,8 @@ English. It is written for learning, project reviews, and interview preparation.
 
 1. The repository documents the business problem, safety rules, and design.
 2. Terraform describes the AWS resources without creating them immediately.
-3. Local checks and GitHub Actions verify the Terraform syntax and formatting.
-4. A non-root deployment role will isolate Terraform from the AWS account root user.
+3. Local checks and GitHub Actions verify CloudFormation, policy-as-code, and Terraform.
+4. A non-root deployment role isolates Terraform from the AWS account root user.
 5. An approved `terraform plan` will preview the AWS changes.
 6. An approved `terraform apply` will create the temporary lab.
 7. EC2 user data will install the web server, monitoring agent, and bounded test tool at first boot.
@@ -47,7 +47,7 @@ design, code, safety controls, and validation system.
 
 - **Why:** Every infrastructure change should receive the same repeatable quality checks.
 - **What:** A read-only GitHub Actions continuous-integration workflow.
-- **How:** Installs Terraform 1.15.9, checks formatting, initializes providers without a backend, and validates the configuration.
+- **How:** Runs `cfn-lint` and CloudFormation Guard for the identity bootstrap, then installs Terraform 1.15.9, checks formatting, initializes providers without a backend, validates the configuration, and runs mocked tests.
 - **When:** Runs on relevant pushes, pull requests, or a manual workflow request. It never runs `plan`, `apply`, or `destroy`.
 
 ### `docs/PORTFOLIO_ROADMAP.md`
@@ -70,6 +70,29 @@ design, code, safety controls, and validation system.
 - **What:** This plain-English explanation of every project component.
 - **How:** Organizes each file by why it exists, what it contains, how it works, and when it is used.
 - **When:** Used while studying, reviewing changes, or preparing for interviews.
+
+## Identity Bootstrap
+
+### `identity/bootstrap.yaml`
+
+- **Why:** Terraform must not operate with the AWS account root user.
+- **What:** A CloudFormation template for one human IAM user, one deployment role, one AssumeRole policy, and one EC2-role permissions boundary.
+- **How:** The user receives only sign-in and AssumeRole permissions; the role requires MFA, expires after one hour, and is scoped to the lab services and resource names.
+- **When:** Deployed once with root during account bootstrap and retained while portfolio projects depend on it.
+
+### `identity/README.md`
+
+- **Why:** Identity controls must be understandable and repeatable, not hidden in policy JSON.
+- **What:** Documents the trust flow, purpose of every IAM resource, private authentication steps, verification, and recovery.
+- **How:** Explains the difference between identity policies and boundaries and records where manual password and MFA work is required.
+- **When:** Read before identity deployment, authentication, role use, or intentional stack removal.
+
+### `identity/rules/identity-bootstrap.guard`
+
+- **Why:** Critical identity invariants should fail automatically during code review.
+- **What:** CloudFormation Guard rules for resource presence, no CloudFormation-managed password, one-hour sessions, required MFA, and the approved sign-in policy.
+- **How:** Guard evaluates the CloudFormation template as policy-as-code and returns a nonzero exit code when a rule fails.
+- **When:** Run locally and by GitHub Actions whenever identity files change.
 
 ## Project Documentation
 
@@ -180,8 +203,8 @@ resource references.
 ### `terraform/iam.tf`
 
 - **Why:** EC2 needs temporary permissions without stored access keys.
-- **What:** Creates the instance role, profile, Systems Manager attachment, and a restricted CloudWatch policy.
-- **How:** The EC2 service assumes the role; permissions allow SSM management, selected log writes, and only the `CWAgent` metric namespace.
+- **What:** Creates the instance role, profile, Systems Manager attachment, a restricted CloudWatch policy, and references the bootstrap permissions boundary.
+- **How:** The EC2 service assumes the role; permissions allow SSM management, selected log writes, and only the `CWAgent` metric namespace, while the boundary caps the role even if an attached policy changes.
 - **When:** Created before the instance starts and used whenever the instance calls AWS services.
 
 ### `terraform/logging.tf`
@@ -235,7 +258,7 @@ learning exercise from consuming CPU indefinitely.
 ### `terraform/tests/security_and_cost.tftest.hcl`
 
 - **Why:** Important controls should fail automatically if a future change weakens them.
-- **What:** Tests IMDSv2, disk encryption and deletion, volume size, monitoring mode, ingress, log retention, and the high-CPU alarm.
+- **What:** Tests IMDSv2, disk encryption and deletion, volume size, monitoring mode, the IAM boundary, ingress, log retention, and the high-CPU alarm.
 - **How:** Terraform uses a mocked AWS provider during `plan`, so the assertions need no credentials and create no cloud resources.
 - **When:** Run locally and by GitHub Actions after every relevant infrastructure change.
 

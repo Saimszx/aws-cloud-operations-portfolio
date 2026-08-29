@@ -30,6 +30,11 @@ hours. Record the start time before applying the plan.
 
 ## 2. Select the Non-Root Profile
 
+Before the first deployment, complete the documented
+[IAM identity bootstrap](../../identity/README.md). It creates the human sign-in
+identity, the MFA-protected deployment role, and the permissions boundary that
+Terraform must attach to the EC2 instance role.
+
 In PowerShell, select the dedicated deployment profile and verify its principal:
 
 ```powershell
