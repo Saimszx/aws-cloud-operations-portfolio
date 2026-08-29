@@ -30,6 +30,7 @@ flowchart TD
     EC2 --> Metrics[CloudWatch metrics]
     Logs --> Dashboard[CloudWatch dashboard]
     Metrics --> Dashboard
+    Logs --> Queries[CloudWatch Logs Insights]
     Metrics --> Alarms[CloudWatch alarms]
     Alarms --> SNS[Amazon SNS topic]
     SNS --> Email[Optional email notification]
@@ -51,10 +52,20 @@ flowchart TD
 |-- architecture/
 |-- terraform/
 |-- scripts/
+|-- queries/
 |-- runbooks/
 |-- incident-report/
-`-- evidence/
+|-- evidence/
+|-- COST_ESTIMATE.md
+`-- DEPLOYMENT.md
 ```
+
+## Operating Procedure
+
+Use the [deployment, verification, and teardown guide](DEPLOYMENT.md) for the
+complete workflow. Review the [cost estimate](COST_ESTIMATE.md) before every
+deployment and use the [CloudWatch Logs Insights query library](queries/cloudwatch-logs-insights.md)
+during verification and incident response.
 
 ## Local and Automated Validation
 
@@ -64,6 +75,7 @@ Run these checks before each infrastructure change:
 terraform fmt -check -recursive
 terraform init -backend=false -input=false
 terraform validate -no-color
+terraform test -no-color
 ```
 
 On Windows, after adding Terraform to `PATH`, the same checks can be run from
@@ -73,8 +85,9 @@ this project directory with:
 .\scripts\terraform-check.ps1
 ```
 
-GitHub Actions repeats the checks on relevant pushes and pull requests. The
-workflow validates configuration only; it never deploys or destroys resources.
+GitHub Actions repeats the checks on relevant pushes and pull requests. The test
+suite uses a mocked AWS provider to verify security and cost controls without
+credentials or cloud resources. The workflow never deploys or destroys resources.
 
 ## Completion Checklist
 
@@ -82,6 +95,9 @@ workflow validates configuration only; it never deploys or destroys resources.
 - [x] Architecture diagram created
 - [x] Terraform configuration validated
 - [x] No secrets or state files tracked by Git
+- [x] Region, budget, and current account cost verified before deployment
+- [x] Bounded incident-generation procedure documented
+- [ ] Dedicated non-root deployment role assumed
 - [ ] Instance reachable through Systems Manager
 - [ ] Web workload produces expected logs
 - [ ] Dashboard displays operational signals
@@ -94,6 +110,8 @@ workflow validates configuration only; it never deploys or destroys resources.
 
 - The project follows the repository-wide [AWS cost safety policy](../../docs/COST_SAFETY.md).
 - The lab will use a dedicated least-privilege identity or role.
+- The approved deployment Region is `us-east-2`.
+- Each deployment is limited to two hours with a conservative USD 0.60 cost ceiling.
 - No access keys, private keys, passwords, or Terraform state files will be committed.
 - Current AWS pricing and Free Tier eligibility will be checked before deployment.
 - AWS service credits will be verified separately from any AWS Skill Builder subscription before paid resources are created.
@@ -111,3 +129,5 @@ For a file-by-file learning explanation, read the repository's [plain-English pr
 - [AWS Systems Manager instance permissions](https://docs.aws.amazon.com/systems-manager/latest/userguide/setup-instance-permissions.html)
 - [CloudWatch agent installation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/download-CloudWatch-Agent-on-EC2-Instance-commandline-first.html)
 - [CloudWatch agent configuration](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Agent-Configuration-File-Details.html)
+- [CloudWatch dashboard body syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Dashboard-Body-Structure.html)
+- [CloudWatch alarms with encrypted SNS topics](https://repost.aws/knowledge-center/cloudwatch-configure-alarm-sns)

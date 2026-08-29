@@ -15,11 +15,13 @@ resource "aws_cloudwatch_metric_alarm" "high_cpu" {
   alarm_description   = "CPU utilization exceeded 80 percent for ten minutes."
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
+  datapoints_to_alarm = 2
   metric_name         = "CPUUtilization"
   namespace           = "AWS/EC2"
   period              = 300
   statistic           = "Average"
   threshold           = 80
+  unit                = "Percent"
   treat_missing_data  = "notBreaching"
 
   dimensions = {
@@ -27,6 +29,7 @@ resource "aws_cloudwatch_metric_alarm" "high_cpu" {
   }
 
   alarm_actions = [aws_sns_topic.operations.arn]
+  ok_actions    = [aws_sns_topic.operations.arn]
 }
 
 resource "aws_cloudwatch_metric_alarm" "status_check" {
@@ -34,11 +37,13 @@ resource "aws_cloudwatch_metric_alarm" "status_check" {
   alarm_description   = "The EC2 instance failed a system or instance status check."
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
+  datapoints_to_alarm = 2
   metric_name         = "StatusCheckFailed"
   namespace           = "AWS/EC2"
   period              = 60
   statistic           = "Maximum"
   threshold           = 0
+  unit                = "Count"
   treat_missing_data  = "notBreaching"
 
   dimensions = {
@@ -46,17 +51,60 @@ resource "aws_cloudwatch_metric_alarm" "status_check" {
   }
 
   alarm_actions = [aws_sns_topic.operations.arn]
+  ok_actions    = [aws_sns_topic.operations.arn]
 }
 
 resource "aws_cloudwatch_dashboard" "operations" {
   dashboard_name = "${local.name_prefix}-operations"
 
   dashboard_body = jsonencode({
+    start          = "-PT8H"
+    periodOverride = "inherit"
     widgets = [
+      {
+        type   = "text"
+        x      = 0
+        y      = 0
+        width  = 24
+        height = 2
+        properties = {
+          markdown = "# Cloud Operations Lab\nUse the alarm panels first, then correlate metrics with recent application logs."
+        }
+      },
       {
         type   = "metric"
         x      = 0
-        y      = 0
+        y      = 2
+        width  = 12
+        height = 6
+        properties = {
+          title  = "High CPU alarm"
+          view   = "timeSeries"
+          region = var.aws_region
+          annotations = {
+            alarms = [aws_cloudwatch_metric_alarm.high_cpu.arn]
+          }
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 2
+        width  = 12
+        height = 6
+        properties = {
+          title  = "EC2 status-check alarm"
+          view   = "timeSeries"
+          region = var.aws_region
+          annotations = {
+            alarms = [aws_cloudwatch_metric_alarm.status_check.arn]
+          }
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 8
         width  = 12
         height = 6
         properties = {
@@ -71,7 +119,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
       {
         type   = "metric"
         x      = 12
-        y      = 0
+        y      = 8
         width  = 12
         height = 6
         properties = {
@@ -90,7 +138,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
       {
         type   = "metric"
         x      = 0
-        y      = 6
+        y      = 14
         width  = 12
         height = 6
         properties = {
@@ -110,7 +158,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
       {
         type   = "metric"
         x      = 12
-        y      = 6
+        y      = 14
         width  = 12
         height = 6
         properties = {
@@ -123,6 +171,19 @@ resource "aws_cloudwatch_dashboard" "operations" {
             ["AWS/EC2", "NetworkIn", "InstanceId", aws_instance.web.id],
             [".", "NetworkOut", ".", "."]
           ]
+        }
+      },
+      {
+        type   = "log"
+        x      = 0
+        y      = 20
+        width  = 24
+        height = 6
+        properties = {
+          title  = "Recent nginx requests"
+          view   = "table"
+          region = var.aws_region
+          query  = "SOURCE '${aws_cloudwatch_log_group.nginx_access.name}' | fields @timestamp, @message | sort @timestamp desc | limit 20"
         }
       }
     ]

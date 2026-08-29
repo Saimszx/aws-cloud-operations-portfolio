@@ -26,6 +26,7 @@ try {
     Invoke-TerraformCommand -TerraformArguments @("fmt", "-check", "-recursive")
     Invoke-TerraformCommand -TerraformArguments @("init", "-backend=false", "-input=false")
     Invoke-TerraformCommand -TerraformArguments @("validate", "-no-color")
+    Invoke-TerraformCommand -TerraformArguments @("test", "-no-color")
 }
 finally {
     Pop-Location

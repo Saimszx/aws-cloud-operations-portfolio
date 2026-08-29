@@ -6,8 +6,6 @@ provider "aws" {
   }
 }
 
-data "aws_caller_identity" "current" {}
-
 locals {
   project_name = "aws-observability-incident-response"
   name_prefix  = "${local.project_name}-${var.environment}"

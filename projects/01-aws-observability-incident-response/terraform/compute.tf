@@ -9,6 +9,7 @@ resource "aws_instance" "web" {
   vpc_security_group_ids      = [aws_security_group.web.id]
   associate_public_ip_address = true
   iam_instance_profile        = aws_iam_instance_profile.this.name
+  monitoring                  = false
 
   user_data_replace_on_change = true
   user_data = templatefile("${path.module}/../scripts/user-data.sh", {
@@ -25,9 +26,10 @@ resource "aws_instance" "web" {
   }
 
   root_block_device {
-    encrypted   = true
-    volume_type = "gp3"
-    volume_size = 8
+    delete_on_termination = true
+    encrypted             = true
+    volume_type           = "gp3"
+    volume_size           = 8
 
     tags = {
       Name = "${local.name_prefix}-root-volume"

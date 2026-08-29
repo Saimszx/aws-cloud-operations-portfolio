@@ -8,13 +8,14 @@ English. It is written for learning, project reviews, and interview preparation.
 1. The repository documents the business problem, safety rules, and design.
 2. Terraform describes the AWS resources without creating them immediately.
 3. Local checks and GitHub Actions verify the Terraform syntax and formatting.
-4. A future approved `terraform plan` will preview the AWS changes.
-5. A future approved `terraform apply` will create the temporary lab.
-6. EC2 user data will install the web server and monitoring agents at first boot.
-7. CloudWatch will collect signals, show dashboards, and trigger alarms.
-8. The runbook will guide incident response and the report will record results.
-9. Evidence will be sanitized, committed, and reviewed.
-10. `terraform destroy` will remove the temporary AWS environment.
+4. A non-root deployment role will isolate Terraform from the AWS account root user.
+5. An approved `terraform plan` will preview the AWS changes.
+6. An approved `terraform apply` will create the temporary lab.
+7. EC2 user data will install the web server, monitoring agent, and bounded test tool at first boot.
+8. CloudWatch will collect signals, show dashboards, and trigger alarms.
+9. The runbook will guide incident response and the report will record results.
+10. Evidence will be sanitized, committed, and reviewed.
+11. `terraform destroy` will remove the temporary AWS environment.
 
 No AWS workload has been deployed yet. The current repository contains the
 design, code, safety controls, and validation system.
@@ -79,6 +80,20 @@ design, code, safety controls, and validation system.
 - **How:** Connects the infrastructure code to an operational business problem.
 - **When:** Read before deployment and updated as checklist items are verified.
 
+### `projects/01-aws-observability-incident-response/DEPLOYMENT.md`
+
+- **Why:** Cloud changes need an ordered procedure with review and stop points.
+- **What:** Defines authentication, validation, planning, deployment, verification, incident testing, and teardown.
+- **How:** Uses a non-root AWS profile and a saved Terraform plan so only reviewed changes are applied.
+- **When:** Followed from the beginning of every lab run until deletion is confirmed.
+
+### `projects/01-aws-observability-incident-response/COST_ESTIMATE.md`
+
+- **Why:** A temporary lab still needs a measurable financial boundary.
+- **What:** Records current pricing inputs, a conservative estimate, a two-hour limit, and a USD 0.60 operational ceiling.
+- **How:** Separates hourly infrastructure charges from conservative CloudWatch metric-month assumptions.
+- **When:** Rechecked before each deployment because pricing and account benefits can change.
+
 ### `architecture/DESIGN_DECISIONS.md`
 
 - **Why:** Architecture choices should include reasoning and tradeoffs, not only diagrams.
@@ -90,8 +105,15 @@ design, code, safety controls, and validation system.
 
 - **Why:** Operations engineers need repeatable response procedures during incidents.
 - **What:** A step-by-step high-CPU triage, containment, recovery, and closure procedure.
-- **How:** Uses CloudWatch for evidence and Systems Manager for secure instance access.
+- **How:** Uses a bounded CPU test, CloudWatch for evidence, and Systems Manager for secure instance access.
 - **When:** Followed when the CPU alarm enters the `ALARM` state, especially during the controlled test.
+
+### `queries/cloudwatch-logs-insights.md`
+
+- **Why:** Repeatable queries make log investigation faster and easier to verify.
+- **What:** Contains queries for requests, HTTP status codes, popular paths, nginx errors, boot failures, and boot chronology.
+- **How:** Parses or filters only the relevant project log group over a narrow time range.
+- **When:** Used during deployment verification and incident triage.
 
 ### `incident-report/TEMPLATE.md`
 
@@ -137,7 +159,7 @@ resource references.
 ### `terraform/variables.tf`
 
 - **Why:** Important settings should be changeable without editing resource code.
-- **What:** Defines Region, environment, network ranges, instance type, HTTP source, and optional notification email.
+- **What:** Defines the Ohio Region, environment, network ranges, instance type, HTTP source, and optional notification email.
 - **How:** Types, defaults, descriptions, validation rules, and the `sensitive` flag constrain input.
 - **When:** Values are resolved before Terraform creates a plan.
 
@@ -165,22 +187,22 @@ resource references.
 ### `terraform/logging.tf`
 
 - **Why:** Logs need known destinations, retention, and lifecycle control.
-- **What:** Creates log groups for nginx access, nginx errors, and cloud-init output.
-- **How:** CloudWatch stores each stream for seven days before automatic expiration.
+- **What:** Creates Standard-class log groups for nginx access, nginx errors, and cloud-init output.
+- **How:** CloudWatch stores each stream for seven days before automatic expiration, while the Standard class keeps every query in the investigation library available.
 - **When:** Created before first boot so the agent can publish immediately.
 
 ### `terraform/compute.tf`
 
 - **Why:** The lab needs an observable Linux workload.
 - **What:** Selects the current Amazon Linux 2023 image and creates one EC2 instance.
-- **How:** Attaches networking and IAM, requires IMDSv2, encrypts an 8-GiB `gp3` disk, and passes values to the user-data script.
+- **How:** Attaches networking and IAM, requires IMDSv2, keeps paid detailed monitoring disabled, encrypts an 8-GiB `gp3` disk, deletes the disk with the instance, and passes values to the user-data script.
 - **When:** Created after its network, permissions, and log destinations exist.
 
 ### `terraform/monitoring.tf`
 
 - **Why:** Operations work requires detection and visibility, not only a running server.
-- **What:** Creates an SNS topic, optional email subscription, CPU and status alarms, and a four-widget dashboard.
-- **How:** CloudWatch evaluates EC2 and agent metrics; alarms publish state changes to SNS.
+- **What:** Creates an SNS topic, optional email subscription, CPU and status alarms, and a dashboard containing alarm, metric, and log panels.
+- **How:** CloudWatch evaluates EC2 and agent metrics; alarms publish both failure and recovery state changes to SNS, and the dashboard uses an eight-hour operational view.
 - **When:** Created during `apply`, evaluated continuously while the lab runs, and tested during the incident exercise.
 
 ### `terraform/outputs.tf`
@@ -195,22 +217,34 @@ resource references.
 ### `scripts/user-data.sh`
 
 - **Why:** A new instance should configure itself consistently.
-- **What:** Installs nginx and the CloudWatch Agent, creates a test page, enables services, and writes the agent configuration.
+- **What:** Installs nginx and the CloudWatch Agent, creates a test page, enables services, writes the agent configuration, and installs a bounded CPU-test command.
 - **How:** EC2 cloud-init runs the script as root; Terraform inserts the Region and log-group names before launch.
 - **When:** Runs automatically during the instance's first boot or when Terraform replaces the instance after user-data changes.
+
+The `portfolio-cpu-test` command accepts a duration of 60 through 900 seconds and
+one through four workers. It stops automatically, which prevents an abandoned
+learning exercise from consuming CPU indefinitely.
 
 ### `scripts/terraform-check.ps1`
 
 - **Why:** Windows users need one reliable command for local quality checks.
-- **What:** Runs Terraform formatting, provider initialization without a backend, and validation.
+- **What:** Runs Terraform formatting, provider initialization without a backend, validation, and mocked tests.
 - **How:** Stops immediately and reports the exact command if any check returns an error.
 - **When:** Run before commits and after changing Terraform files.
+
+### `terraform/tests/security_and_cost.tftest.hcl`
+
+- **Why:** Important controls should fail automatically if a future change weakens them.
+- **What:** Tests IMDSv2, disk encryption and deletion, volume size, monitoring mode, ingress, log retention, and the high-CPU alarm.
+- **How:** Terraform uses a mocked AWS provider during `plan`, so the assertions need no credentials and create no cloud resources.
+- **When:** Run locally and by GitHub Actions after every relevant infrastructure change.
 
 ## Important Terraform Commands
 
 - `terraform fmt -check -recursive`: checks consistent code formatting; it changes nothing in AWS.
 - `terraform init -backend=false -input=false`: downloads or verifies providers for validation; it changes nothing in AWS.
 - `terraform validate`: checks that references and configuration are internally valid; it changes nothing in AWS.
+- `terraform test`: plans with a mocked provider and evaluates project assertions; it changes nothing in AWS.
 - `terraform plan`: previews intended AWS changes; normally it changes nothing in AWS.
 - `terraform apply`: creates or modifies the approved AWS resources.
 - `terraform destroy`: removes the resources recorded in Terraform state.

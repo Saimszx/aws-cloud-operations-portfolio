@@ -45,3 +45,6 @@ jobs:
 
       - name: Validate configuration
         run: terraform validate -no-color
+
+      - name: Test security and cost controls
+        run: terraform test -no-color

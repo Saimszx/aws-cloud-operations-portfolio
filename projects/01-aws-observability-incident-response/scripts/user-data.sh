@@ -22,6 +22,47 @@ HTML
 systemctl enable --now nginx
 systemctl enable --now amazon-ssm-agent
 
+cat > /usr/local/bin/portfolio-cpu-test <<'CPU_TEST'
+#!/bin/bash
+set -euo pipefail
+
+duration_seconds="$${1:-720}"
+worker_count="$${2:-$(nproc)}"
+
+if ! [[ "$duration_seconds" =~ ^[0-9]+$ ]] || ((duration_seconds < 60 || duration_seconds > 900)); then
+  echo "Duration must be an integer from 60 through 900 seconds." >&2
+  exit 2
+fi
+
+if ! [[ "$worker_count" =~ ^[0-9]+$ ]] || ((worker_count < 1 || worker_count > 4)); then
+  echo "Worker count must be an integer from 1 through 4." >&2
+  exit 2
+fi
+
+pids=()
+cleanup() {
+  for pid in "$${pids[@]:-}"; do
+    kill "$pid" 2>/dev/null || true
+  done
+  wait 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+logger -t portfolio-cpu-test "Starting bounded CPU test: duration=$${duration_seconds}s workers=$${worker_count}"
+echo "Starting $${worker_count} CPU workers for $${duration_seconds} seconds."
+
+for ((worker = 1; worker <= worker_count; worker++)); do
+  bash -c 'end=$((SECONDS + $1)); while ((SECONDS < end)); do :; done' _ "$duration_seconds" &
+  pids+=("$!")
+done
+
+wait
+logger -t portfolio-cpu-test "Completed bounded CPU test"
+echo "CPU test completed."
+CPU_TEST
+
+chmod 0755 /usr/local/bin/portfolio-cpu-test
+
 cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CWCONFIG'
 {
   "agent": {
