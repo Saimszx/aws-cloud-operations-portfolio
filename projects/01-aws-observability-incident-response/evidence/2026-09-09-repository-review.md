@@ -13,6 +13,7 @@ workload. Historical runtime results remain in the
 | Mocked Terraform tests | Two runs passed, including the optional email input |
 | CloudFormation lint | 0 errors, 0 warnings, 0 informational findings |
 | CloudFormation Guard | Seven rules passed |
+| Cleanup-verifier offline tests | Six scenarios passed; no AWS calls |
 | Local Terraform state | No managed resources and no outputs |
 | Public documentation | Updated to distinguish historical outcomes from pending work |
 
@@ -42,6 +43,20 @@ offered to overwrite the existing IAM profile; that overwrite was declined.
 The profile was preserved. A successful authenticated read through the
 deployment role and a fresh service-level resource inventory remain pending
 renewal of the human IAM session. No new workload was deployed during this review.
+
+## Release Boundary
+
+The operator explicitly deferred local IAM login troubleshooting and fresh
+account checks until a later session. The portfolio release therefore includes
+the completed historical exercise, validated infrastructure code, operating
+procedures, and a repeatable read-only verifier. It does not claim a new live
+deployment, a successful renewed IAM session, or a fresh empty AWS inventory.
+
+The cleanup verifier rejects the wrong principal before inventory reads, checks
+the alarm-history response, and fails on API errors or remaining resources. Its
+six offline scenarios cover clean responses, wrong identity, denied reads,
+missing history fields, invalid resource counts, and nonzero resource counts.
+They prove local control flow, not current AWS authorization.
 
 The historical run observed alarm transitions and configured SNS action targets.
 Successful SNS publication and recipient delivery are not independently proven

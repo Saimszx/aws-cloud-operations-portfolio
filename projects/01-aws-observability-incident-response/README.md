@@ -1,6 +1,6 @@
 # AWS Observability and Incident Response Lab
 
-Status: Live exercise completed on August 29, 2026; final IAM follow-up pending.
+Status: Completed lab. Live exercise: August 29, 2026. Repository review: September 9, 2026.
 
 The temporary workload was removed after validation. This repository contains
 the reproducible infrastructure and recorded results, not an always-on website.
@@ -110,7 +110,10 @@ credentials or cloud resources. The workflow never deploys or destroys resources
 - [x] Recovery steps and root cause documented
 - [x] Infrastructure destroyed and service-level leftover checks completed
 - [x] Final alarm-history read permission deployed through a reviewed change set
-- [ ] Authenticated alarm-history read verified through the deployment role
+
+Local IAM sign-in recovery and a fresh deployment-role read check were deferred
+by the operator on September 9. They are follow-up account tasks and are not
+claimed as verified by this release. See the [repository review](evidence/2026-09-09-repository-review.md).
 
 ## Safety Notes
 
@@ -142,7 +145,13 @@ are not independently proven by the retained evidence. The template includes
 the follow-up `cloudwatch:DescribeAlarmHistory` permission. Its CloudFormation
 deployment completed on September 9, 2026, and the deployed template matched
 the repository. The final direct read check through the deployment role is
-pending renewal of the human IAM session.
+deferred until the operator resumes IAM sign-in troubleshooting. This does not
+change the historical lab results or imply that a new workload is running.
+
+The [read-only cleanup verifier](scripts/verify-cleanup.ps1) can repeat the role,
+alarm-history, and scoped resource-count checks once the IAM session is restored.
+Its offline tests cover successful cleanup, wrong identity, failed API calls,
+malformed responses, and remaining resources. These tests do not contact AWS.
 
 For a file-by-file learning explanation, read the repository's [plain-English project guide](../../docs/PROJECT_GUIDE.md).
 

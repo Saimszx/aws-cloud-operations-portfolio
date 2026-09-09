@@ -21,7 +21,8 @@ The live exercise was completed on August 29, 2026, and the temporary workload
 was removed after verification. The numbered sequence above describes how to
 repeat the lab. Historical outcomes are recorded in the incident report and
 validation summary. The final alarm-history IAM update was deployed on
-September 9; its direct read check through the deployment role remains pending.
+September 9. The operator deferred local IAM sign-in recovery and a new direct
+read check through the deployment role until a later session.
 
 ## Repository-Level Files
 
@@ -278,6 +279,27 @@ learning exercise from consuming CPU indefinitely.
 - **What:** Tests IMDSv2, disk encryption and deletion, volume size, monitoring mode, the IAM boundary, ingress, log retention, and the high-CPU alarm.
 - **How:** Terraform uses a mocked AWS provider during `plan`, so the assertions need no credentials and create no cloud resources.
 - **When:** Run locally and by GitHub Actions after every relevant infrastructure change.
+
+### `scripts/verify-cleanup.ps1`
+
+- **Why:** A failed AWS request must not be mistaken for a clean environment.
+- **What:** A read-only check of the expected assumed role, alarm-history access, and selected lab resource counts.
+- **How:** Uses AWS CLI JSON responses, stops on errors, and reports sanitized counts. It checks fixed default lab names and tags in `us-east-2`; SNS and IAM require separate review.
+- **When:** Run after Terraform destroy, with a valid IAM login and deployment-role profile.
+
+### `scripts/tests/verify-cleanup.tests.ps1`
+
+- **Why:** The verifier must reject invalid identities, failed reads, malformed responses, and leftover resources.
+- **What:** Six offline test scenarios using a fake AWS command.
+- **How:** Supplies controlled responses and verifies success or the expected failure, without using credentials or AWS resources.
+- **When:** Run locally and in GitHub Actions after relevant changes.
+
+### `evidence/2026-09-09-repository-review.md`
+
+- **Why:** Historical runtime evidence and current repository checks have different scopes.
+- **What:** Records the local review, deployed IAM follow-up, and explicitly deferred sign-in work.
+- **How:** Distinguishes observed checks from mocked tests and unresolved account verification.
+- **When:** Read when assessing the September repository release.
 
 ## Important Terraform Commands
 

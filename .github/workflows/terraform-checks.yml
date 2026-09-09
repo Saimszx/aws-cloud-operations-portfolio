@@ -78,3 +78,7 @@ jobs:
 
       - name: Test security and cost controls
         run: terraform test -no-color
+
+      - name: Test cleanup verifier without AWS access
+        shell: pwsh
+        run: ../scripts/tests/verify-cleanup.tests.ps1

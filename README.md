@@ -21,7 +21,7 @@ I am a Computer Information Systems student at Miami Dade College with an intere
 
 | Project | Skills demonstrated | Status |
 | --- | --- | --- |
-| [AWS Observability and Incident Response Lab](projects/01-aws-observability-incident-response/README.md) | EC2, IAM, Systems Manager, CloudWatch, SNS, Linux, Terraform, troubleshooting | Live exercise completed; final IAM follow-up pending |
+| [AWS Observability and Incident Response Lab](projects/01-aws-observability-incident-response/README.md) | EC2, IAM, Systems Manager, CloudWatch, SNS, Linux, Terraform, troubleshooting | Completed lab; reproducible code and incident report |
 | Highly Available Static Website | S3, CloudFront, Route 53, ACM, GitHub Actions | Planned |
 | Backup and Disaster Recovery Lab | AWS Backup, S3 versioning, lifecycle policies, recovery testing | Planned |
 | Serverless Operations and Cost Controls | Lambda, API Gateway, DynamoDB, logging, alarms, budgets | Planned |

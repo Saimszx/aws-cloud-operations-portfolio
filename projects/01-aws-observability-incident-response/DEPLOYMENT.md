@@ -184,6 +184,23 @@ and check the Billing and Cost Management dashboard. Do not delete the local
 state until teardown is confirmed, because Terraform uses that state to identify
 what it must remove.
 
+From the project directory, repeat the read-only checks with PowerShell 7:
+
+```powershell
+.\scripts\verify-cleanup.ps1
+```
+
+Use `-AwsCommand "C:\path\to\aws.exe"` when AWS CLI is not in `PATH`.
+The script requires the exact assumed deployment role, checks alarm-history read
+access, and counts the default `lab` environment's tagged compute/network
+resources and named log groups, metric alarms, and dashboards in `us-east-2`.
+It fails on API errors, unexpected responses, or nonzero counts. It never deletes
+resources. Review SNS, IAM instance roles/profiles, Terraform state, and billing
+separately; a zero result only covers the resource categories named in its output.
+
+The verifier is intended for this repository's default environment. If you
+change names, tags, or environment values, adjust and review its scope first.
+
 After the zero-resource verification succeeds, delete the generated plan files:
 
 ```powershell
