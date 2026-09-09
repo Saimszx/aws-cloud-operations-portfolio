@@ -35,6 +35,12 @@ Before the first deployment, complete the documented
 identity, the MFA-protected deployment role, and the permissions boundary that
 Terraform must attach to the EC2 instance role.
 
+Authenticate the human profile with `aws login`. If the Terraform AWS provider
+cannot load the resulting `login_session`, configure the documented
+`aws-portfolio-admin-sdk` process-credential bridge. The bridge runs
+`aws configure export-credentials` and gives the SDK temporary, renewable
+credentials without creating long-lived access keys.
+
 In PowerShell, select the dedicated deployment profile and verify its principal:
 
 ```powershell
@@ -45,6 +51,11 @@ aws sts get-caller-identity --query Arn --output text
 
 The returned ARN must identify an assumed role or approved IAM principal. It
 must not end in `:root`.
+
+If AWS CLI commands work but Terraform reports `failed to load assume role`,
+verify that `aws-portfolio-deployer` uses `aws-portfolio-admin-sdk` as its
+`source_profile` and that the bridge includes `--region us-east-2`. The complete
+profile configuration is in the [identity guide](../../identity/README.md).
 
 ## 3. Prepare Optional Input
 
@@ -172,6 +183,16 @@ After Terraform reports success, verify that no project-tagged resources remain
 and check the Billing and Cost Management dashboard. Do not delete the local
 state until teardown is confirmed, because Terraform uses that state to identify
 what it must remove.
+
+After the zero-resource verification succeeds, delete the generated plan files:
+
+```powershell
+Remove-Item -LiteralPath portfolio.tfplan -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath teardown.tfplan -ErrorAction SilentlyContinue
+```
+
+Both patterns are ignored by Git, but removing used plans also reduces local
+exposure because a saved plan can contain resource values.
 
 ## When Each Terraform Command Is Used
 

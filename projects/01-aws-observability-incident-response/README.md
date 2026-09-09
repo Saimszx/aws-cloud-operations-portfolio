@@ -1,6 +1,9 @@
 # AWS Observability and Incident Response Lab
 
-Status: In progress
+Status: Live exercise completed on August 29, 2026; final IAM follow-up pending.
+
+The temporary workload was removed after validation. This repository contains
+the reproducible infrastructure and recorded results, not an always-on website.
 
 ## Scenario
 
@@ -18,7 +21,7 @@ A small organization runs a Linux web workload in AWS. The operations team needs
 - Produce an incident report with evidence and lessons learned
 - Destroy all project resources after verification
 
-## Planned Architecture
+## Architecture
 
 ```mermaid
 flowchart TD
@@ -44,7 +47,7 @@ flowchart TD
 - Monitoring, alerting, troubleshooting, and incident documentation
 - Security, cost awareness, and resource teardown
 
-## Planned Repository Structure
+## Repository Structure
 
 ```text
 01-aws-observability-incident-response/
@@ -97,14 +100,16 @@ credentials or cloud resources. The workflow never deploys or destroys resources
 - [x] No secrets or state files tracked by Git
 - [x] Region, budget, and current account cost verified before deployment
 - [x] Bounded incident-generation procedure documented
-- [ ] Dedicated non-root deployment role assumed
-- [ ] Instance reachable through Systems Manager
-- [ ] Web workload produces expected logs
-- [ ] Dashboard displays operational signals
-- [ ] Alarm and SNS notification tested
-- [ ] Controlled incident completed
-- [ ] Recovery steps and root cause documented
-- [ ] Infrastructure destroyed and AWS console checked for leftovers
+- [x] Dedicated non-root deployment role assumed
+- [x] Instance reachable through Systems Manager
+- [x] Web workload produces expected logs
+- [x] Dashboard and operational metrics available
+- [x] CPU alarm changed from OK to ALARM and back to OK
+- [x] SNS action targets configured; external email delivery was not tested
+- [x] Controlled incident completed
+- [x] Recovery steps and root cause documented
+- [x] Infrastructure destroyed and service-level leftover checks completed
+- [ ] Final alarm-history read permission deployed and verified
 
 ## Safety Notes
 
@@ -119,7 +124,22 @@ credentials or cloud resources. The workflow never deploys or destroys resources
 
 ## Results
 
-This section will be completed only after the environment has been deployed and verified.
+The recorded run created 20 Terraform resources in `us-east-2`. Session Manager
+access, HTTP responses, log streams, and memory metrics were verified. A bounded
+12-minute CPU test triggered the high-CPU alarm; the alarm returned to OK after
+the test ended. HTTP checks succeeded during the exercise. Terraform then
+destroyed all 20 resources, and the recorded leftover checks returned zero.
+
+Read the [incident report](incident-report/2026-08-29-high-cpu-event.md) and
+[validation summary](evidence/2026-08-29-validation-summary.md) for the timeline,
+observations, and limitations. These are operator-recorded historical results;
+they are not a claim that AWS resources are running today.
+
+The run verified alarm transitions and configured SNS targets. No email
+subscriber was configured, so recipient delivery and successful SNS publication
+are not independently proven by the retained evidence. The template includes
+the follow-up `cloudwatch:DescribeAlarmHistory` permission; deployment of that
+final permission still requires verification.
 
 For a file-by-file learning explanation, read the repository's [plain-English project guide](../../docs/PROJECT_GUIDE.md).
 

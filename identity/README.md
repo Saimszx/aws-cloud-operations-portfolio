@@ -70,6 +70,45 @@ The root user is used once for this identity bootstrap:
 7. Configure and verify the `aws-portfolio-deployer` role profile.
 8. Stop using root for project work.
 
+## Local Authentication Profiles
+
+The AWS CLI `login_session` provider supplies short-lived credentials after the
+operator signs in with the IAM console password and MFA. Some SDK-based tools,
+including versions of the Terraform AWS provider, do not read `login_session`
+directly. A process-credential bridge lets those tools ask the AWS CLI for the
+same temporary credentials without creating an access key.
+
+The three local profiles have separate responsibilities:
+
+| Profile | Why it exists | What it does | When it is used |
+| --- | --- | --- | --- |
+| `aws-portfolio-admin` | Keeps human authentication separate from deployment authorization | Uses `aws login` and the IAM user's console session | At the beginning of a local work session |
+| `aws-portfolio-admin-sdk` | Makes the CLI login session compatible with SDK-based tools | Runs `aws configure export-credentials` in process JSON format | Whenever Terraform requests source credentials |
+| `aws-portfolio-deployer` | Applies the scoped role permissions instead of the user's direct permissions | Uses the SDK bridge as `source_profile` and assumes the MFA-protected role for at most one hour | During Terraform and operational AWS commands |
+
+The portable configuration pattern is:
+
+```powershell
+aws login --profile aws-portfolio-admin --region us-east-2
+
+aws configure set region us-east-2 --profile aws-portfolio-admin
+aws configure set credential_process `
+  "aws configure export-credentials --profile aws-portfolio-admin --region us-east-2 --format process" `
+  --profile aws-portfolio-admin-sdk
+aws configure set region us-east-2 --profile aws-portfolio-admin-sdk
+
+aws configure set role_arn "<DEPLOYMENT_ROLE_ARN>" --profile aws-portfolio-deployer
+aws configure set source_profile aws-portfolio-admin-sdk --profile aws-portfolio-deployer
+aws configure set role_session_name SamuelPortfolioSession --profile aws-portfolio-deployer
+aws configure set duration_seconds 3600 --profile aws-portfolio-deployer
+aws configure set region us-east-2 --profile aws-portfolio-deployer
+```
+
+On Windows, use the full path to `aws.exe` inside `credential_process` if `aws`
+is not available through the system `PATH`. The process returns temporary
+credentials to the requesting SDK at runtime; it does not write long-lived
+access keys to the repository or Terraform configuration.
+
 ## Expected Trust Flow
 
 ```text

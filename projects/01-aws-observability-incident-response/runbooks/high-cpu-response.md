@@ -7,7 +7,7 @@ Use this runbook when the CloudWatch high-CPU alarm enters the `ALARM` state for
 ## Preconditions
 
 - Confirm the instance belongs to this portfolio project by checking its tags.
-- Confirm the alert is not caused by an approved test.
+- Determine whether the alert is caused by this approved test or an unexpected workload.
 - Use AWS Systems Manager Session Manager; do not open SSH to the internet.
 - Record the test start time before generating load.
 
@@ -24,6 +24,19 @@ The command uses one worker per available CPU by default and stops after 720
 seconds. It rejects durations below 60 seconds or above 900 seconds and rejects
 more than four workers. Open a second Systems Manager session for investigation
 while the test session remains active.
+
+To reproduce the recorded run independently of the terminal connection, use a
+transient systemd service instead of the foreground command above:
+
+```bash
+sudo systemd-run --unit=portfolio-cpu-incident --property=RuntimeMaxSec=780 /usr/local/bin/portfolio-cpu-test 720 2
+systemctl status portfolio-cpu-incident --no-pager
+```
+
+After the test, check `systemctl show portfolio-cpu-incident -p ActiveState -p Result -p ExecMainStatus`.
+An inactive service with a successful result means the bounded command finished.
+To stop this service early, run `sudo systemctl stop portfolio-cpu-incident`.
+Use either the foreground method or the systemd method, never both at once.
 
 ## Triage
 
@@ -43,7 +56,7 @@ curl --fail --silent http://localhost/ > /dev/null && echo "nginx is responding"
 
 ## Containment and Recovery
 
-1. Allow the bounded test to finish, or press `Ctrl+C` in its session to stop it early.
+1. Allow the bounded test to finish, or stop it using the method selected above (`Ctrl+C` for the foreground command, `systemctl stop` for the service).
 2. Restart nginx only when evidence shows the service is unhealthy.
 3. Avoid rebooting until lower-impact recovery actions have been evaluated.
 4. Confirm the website responds and operational metrics return to normal.

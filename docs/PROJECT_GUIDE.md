@@ -17,8 +17,10 @@ English. It is written for learning, project reviews, and interview preparation.
 10. Evidence will be sanitized, committed, and reviewed.
 11. `terraform destroy` will remove the temporary AWS environment.
 
-No AWS workload has been deployed yet. The current repository contains the
-design, code, safety controls, and validation system.
+The live exercise was completed on August 29, 2026, and the temporary workload
+was removed after verification. The numbered sequence above describes how to
+repeat the lab. Historical outcomes are recorded in the incident report and
+validation summary; the final alarm-history IAM update remains pending.
 
 ## Repository-Level Files
 
@@ -151,6 +153,20 @@ design, code, safety controls, and validation system.
 - **What:** Rules for acceptable, sanitized portfolio evidence.
 - **How:** Lists what may be stored and what must be removed or obscured first.
 - **When:** Applied before any screenshot, log excerpt, or deployment output is committed.
+
+### `incident-report/2026-08-29-high-cpu-event.md`
+
+- **Why:** A completed exercise needs an honest operational record.
+- **What:** Records the CPU incident, UTC timeline, checks, recovery, and limitations.
+- **How:** Connects observed alarm changes with the bounded workload and HTTP checks.
+- **When:** Read after the runbook to understand what happened in the real exercise.
+
+### `evidence/2026-08-29-validation-summary.md`
+
+- **Why:** Readers need to distinguish verified outcomes from planned features.
+- **What:** Summarizes historical infrastructure, runtime, and cleanup checks.
+- **How:** Preserves sanitized observations without credentials or raw account data.
+- **When:** Reviewed alongside the incident report and before claiming completion.
 
 ## Terraform Configuration
 

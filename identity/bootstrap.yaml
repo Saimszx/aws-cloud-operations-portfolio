@@ -221,6 +221,7 @@ Resources:
                   - ec2:DescribeAvailabilityZones
                   - ec2:DescribeImages
                   - ec2:DescribeInstanceAttribute
+                  - ec2:DescribeInstanceCreditSpecifications
                   - ec2:DescribeInstances
                   - ec2:DescribeInstanceTypes
                   - ec2:DescribeInternetGateways
@@ -282,6 +283,7 @@ Resources:
                 Action:
                   - cloudwatch:DeleteAlarms
                   - cloudwatch:DeleteDashboards
+                  - cloudwatch:DescribeAlarmHistory
                   - cloudwatch:DescribeAlarms
                   - cloudwatch:GetDashboard
                   - cloudwatch:GetMetricData

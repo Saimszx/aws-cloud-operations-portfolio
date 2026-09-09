@@ -28,6 +28,19 @@ mock_provider "aws" {
   }
 }
 
+run "optional_email_subscription" {
+  command = plan
+
+  variables {
+    notification_email = "operator@example.com"
+  }
+
+  assert {
+    condition     = length(aws_sns_topic_subscription.email) == 1
+    error_message = "A configured notification email must create exactly one subscription."
+  }
+}
+
 run "security_and_cost_controls" {
   command = plan
 
