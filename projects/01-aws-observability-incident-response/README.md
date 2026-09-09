@@ -109,7 +109,8 @@ credentials or cloud resources. The workflow never deploys or destroys resources
 - [x] Controlled incident completed
 - [x] Recovery steps and root cause documented
 - [x] Infrastructure destroyed and service-level leftover checks completed
-- [ ] Final alarm-history read permission deployed and verified
+- [x] Final alarm-history read permission deployed through a reviewed change set
+- [ ] Authenticated alarm-history read verified through the deployment role
 
 ## Safety Notes
 
@@ -138,8 +139,10 @@ they are not a claim that AWS resources are running today.
 The run verified alarm transitions and configured SNS targets. No email
 subscriber was configured, so recipient delivery and successful SNS publication
 are not independently proven by the retained evidence. The template includes
-the follow-up `cloudwatch:DescribeAlarmHistory` permission; deployment of that
-final permission still requires verification.
+the follow-up `cloudwatch:DescribeAlarmHistory` permission. Its CloudFormation
+deployment completed on September 9, 2026, and the deployed template matched
+the repository. The final direct read check through the deployment role is
+pending renewal of the human IAM session.
 
 For a file-by-file learning explanation, read the repository's [plain-English project guide](../../docs/PROJECT_GUIDE.md).
 

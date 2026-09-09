@@ -20,7 +20,8 @@ English. It is written for learning, project reviews, and interview preparation.
 The live exercise was completed on August 29, 2026, and the temporary workload
 was removed after verification. The numbered sequence above describes how to
 repeat the lab. Historical outcomes are recorded in the incident report and
-validation summary; the final alarm-history IAM update remains pending.
+validation summary. The final alarm-history IAM update was deployed on
+September 9; its direct read check through the deployment role remains pending.
 
 ## Repository-Level Files
 

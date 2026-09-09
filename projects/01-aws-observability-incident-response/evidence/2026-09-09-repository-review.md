@@ -22,13 +22,26 @@ data also means these Terraform tests do not validate effective AWS permissions.
 CloudFormation Guard checks selected structural invariants, not complete IAM
 policy evaluation.
 
-## Pending Account Verification
+## IAM Update and Pending Role Verification
 
-The deployment profile returned a session-expired error during this review.
-Consequently, this review does not assert the current live resource inventory
-or completion of the final IAM stack update. The local template includes
-`cloudwatch:DescribeAlarmHistory`, but that permission still needs a reviewed
-CloudFormation update and an authenticated read check.
+The deployment profile initially returned a session-expired error. After a
+temporary bootstrap login, the existing identity stack was inspected and an
+UPDATE change set was created using all previous parameter values.
+
+- Change set: `portfolio-alarm-history-read-20260909`
+- Template comparison before execution: the only added line was `cloudwatch:DescribeAlarmHistory`
+- Direct change: deployment-role inline policy, no replacement
+- Indirect change: reevaluation of the human AssumeRole policy reference, no replacement
+- Pre-deployment validation errors: none returned by `describe-events`
+- Stack outcome: `UPDATE_COMPLETE`
+- Post-update comparison: deployed template exactly matched the repository
+- Temporary bootstrap login: logged out after verification
+
+The subsequent human-profile login selected root in the browser. The CLI
+offered to overwrite the existing IAM profile; that overwrite was declined.
+The profile was preserved. A successful authenticated read through the
+deployment role and a fresh service-level resource inventory remain pending
+renewal of the human IAM session. No new workload was deployed during this review.
 
 The historical run observed alarm transitions and configured SNS action targets.
 Successful SNS publication and recipient delivery are not independently proven
